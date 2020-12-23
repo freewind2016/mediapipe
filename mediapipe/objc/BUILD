@@ -1,6 +1,8 @@
+load("//mediapipe/framework/tool:mediapipe_graph.bzl", "mediapipe_binary_graph")
+
 package(default_visibility = ["//visibility:private"])
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
 cc_library(
     name = "CFHolder",
@@ -16,6 +18,7 @@ cc_library(
     name = "util",
     srcs = ["util.cc"],
     hdrs = ["util.h"],
+    features = ["-parse_headers"],
     visibility = ["//mediapipe/framework:mediapipe_internal"],
     deps = [
         ":CFHolder",
@@ -54,6 +57,7 @@ objc_library(
     hdrs = MEDIAPIPE_IOS_HDRS,
     copts = [
         "-Wno-shorten-64-to-32",
+        "-std=c++17",
     ],
     sdk_frameworks = [
         # Needed for OpenCV.
@@ -89,16 +93,27 @@ objc_library(
 objc_library(
     name = "mediapipe_input_sources_ios",
     srcs = [
-        "MPPCameraInputSource.m",
-        "MPPDisplayLinkWeakTarget.m",
         "MPPInputSource.m",
         "MPPPlayerInputSource.m",
-    ],
+    ] + select({
+        "//mediapipe:ios": [
+            "MPPCameraInputSource.m",
+            "MPPDisplayLinkWeakTarget.m",
+        ],
+        "//conditions:default": [],
+    }),
     hdrs = [
-        "MPPCameraInputSource.h",
-        "MPPDisplayLinkWeakTarget.h",
         "MPPInputSource.h",
         "MPPPlayerInputSource.h",
+    ] + select({
+        "//mediapipe:ios": [
+            "MPPCameraInputSource.h",
+            "MPPDisplayLinkWeakTarget.h",
+        ],
+        "//conditions:default": [],
+    }),
+    sdk_frameworks = [
+        "CoreVideo",
     ],
     visibility = ["//mediapipe/framework:mediapipe_internal"],
 )
@@ -113,6 +128,7 @@ objc_library(
     ],
     copts = [
         "-Wno-shorten-64-to-32",
+        "-std=c++17",
     ],
     visibility = ["//mediapipe/framework:mediapipe_internal"],
     deps = [
@@ -152,6 +168,7 @@ objc_library(
     ],
     copts = [
         "-Wno-shorten-64-to-32",
+        "-std=c++17",
     ],
     sdk_frameworks = [
         "CoreVideo",
@@ -174,6 +191,7 @@ objc_library(
     ],
     copts = [
         "-Wno-shorten-64-to-32",
+        "-std=c++17",
     ],
     sdk_frameworks = [
         "Accelerate",
@@ -204,6 +222,7 @@ objc_library(
     ],
     copts = [
         "-Wno-shorten-64-to-32",
+        "-std=c++17",
     ],
     data = [
         "testdata/googlelogo_color_272x92dp.png",
@@ -227,8 +246,6 @@ objc_library(
         "//mediapipe/calculators/core:pass_through_calculator",
     ],
 )
-
-load("//mediapipe/framework/tool:mediapipe_graph.bzl", "mediapipe_binary_graph")
 
 [
     mediapipe_binary_graph(

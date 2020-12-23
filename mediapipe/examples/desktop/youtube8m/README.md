@@ -1,7 +1,7 @@
 ### Steps to run the YouTube-8M feature extraction graph
 
 1.  Checkout the repository and follow
-    [the installation instructions](https://github.com/google/mediapipe/blob/master/mediapipe/docs/install.md)
+    [the installation instructions](https://github.com/google/mediapipe/blob/master/docs/getting_started/install.md)
     to set up MediaPipe.
 
     ```bash
@@ -81,7 +81,7 @@
 2.  Copy the baseline model [(model card)](https://drive.google.com/file/d/1xTCi9-Nm9dt2KIk8WR0dDFrIssWawyXy/view) to local.
 
     ```bash
-    curl -o /tmp/mediapipe/yt8m_baseline_saved_model.tar.gz data.yt8m.org/models/baseline/saved_model.tar.gz
+    curl -o /tmp/mediapipe/yt8m_baseline_saved_model.tar.gz http://data.yt8m.org/models/baseline/saved_model.tar.gz
 
     tar -xvf /tmp/mediapipe/yt8m_baseline_saved_model.tar.gz -C /tmp/mediapipe
     ```
@@ -107,7 +107,7 @@
 
 
     ```bash
-    curl -o /tmp/mediapipe/yt8m_baseline_saved_model.tar.gz data.yt8m.org/models/baseline/saved_model.tar.gz
+    curl -o /tmp/mediapipe/yt8m_baseline_saved_model.tar.gz http://data.yt8m.org/models/baseline/saved_model.tar.gz
 
     tar -xvf /tmp/mediapipe/yt8m_baseline_saved_model.tar.gz -C /tmp/mediapipe
     ```
@@ -136,7 +136,7 @@
 2.  Copy the baseline model [(model card)](https://drive.google.com/file/d/1xTCi9-Nm9dt2KIk8WR0dDFrIssWawyXy/view) to local.
 
     ```bash
-    curl -o /tmp/mediapipe/yt8m_baseline_saved_model.tar.gz data.yt8m.org/models/baseline/saved_model.tar.gz
+    curl -o /tmp/mediapipe/yt8m_baseline_saved_model.tar.gz http://data.yt8m.org/models/baseline/saved_model.tar.gz
 
     tar -xvf /tmp/mediapipe/yt8m_baseline_saved_model.tar.gz -C /tmp/mediapipe
     ```

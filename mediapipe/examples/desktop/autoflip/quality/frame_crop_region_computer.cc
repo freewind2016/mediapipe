@@ -22,7 +22,7 @@
 namespace mediapipe {
 namespace autoflip {
 
-::mediapipe::Status FrameCropRegionComputer::ExpandSegmentUnderConstraint(
+mediapipe::Status FrameCropRegionComputer::ExpandSegmentUnderConstraint(
     const Segment& segment_to_add, const Segment& base_segment,
     const int max_length, Segment* combined_segment,
     CoverType* cover_type) const {
@@ -75,10 +75,10 @@ namespace autoflip {
 
   *combined_segment =
       std::make_pair(combined_segment_left, combined_segment_right);
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
-::mediapipe::Status FrameCropRegionComputer::ExpandRectUnderConstraints(
+mediapipe::Status FrameCropRegionComputer::ExpandRectUnderConstraints(
     const Rect& rect_to_add, const int max_width, const int max_height,
     Rect* base_rect, CoverType* cover_type) const {
   RET_CHECK(base_rect != nullptr) << "Base rect is null.";
@@ -129,7 +129,7 @@ namespace autoflip {
     }
   }
 
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
 void FrameCropRegionComputer::UpdateCropRegionScore(
@@ -167,9 +167,12 @@ void FrameCropRegionComputer::UpdateCropRegionScore(
   }
 }
 
-::mediapipe::Status FrameCropRegionComputer::ComputeFrameCropRegion(
+mediapipe::Status FrameCropRegionComputer::ComputeFrameCropRegion(
     const KeyFrameInfo& frame_info, KeyFrameCropResult* crop_result) const {
   RET_CHECK(crop_result != nullptr) << "KeyFrameCropResult is null.";
+
+  // Set timestamp of KeyFrameCropResult
+  crop_result->set_timestamp_ms(frame_info.timestamp_ms());
 
   // Sorts required and non-required regions.
   std::vector<SalientRegion> required_regions, non_required_regions;
@@ -180,7 +183,6 @@ void FrameCropRegionComputer::UpdateCropRegionScore(
   int target_width = options_.target_width();
   int target_height = options_.target_height();
   auto* region = crop_result->mutable_region();
-  RET_CHECK(region != nullptr) << "Crop region is null.";
 
   bool crop_region_is_empty = true;
   float crop_region_score = 0.0;
@@ -252,7 +254,7 @@ void FrameCropRegionComputer::UpdateCropRegionScore(
 
   crop_result->set_region_is_empty(crop_region_is_empty);
   crop_result->set_region_score(crop_region_score);
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
 }  // namespace autoflip

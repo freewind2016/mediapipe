@@ -45,7 +45,7 @@ class ImmediateInputStreamHandler : public InputStreamHandler {
       std::function<void()> headers_ready_callback,
       std::function<void()> notification_callback,
       std::function<void(CalculatorContext*)> schedule_callback,
-      std::function<void(::mediapipe::Status)> error_callback) override;
+      std::function<void(mediapipe::Status)> error_callback) override;
 
   // Returns kReadyForProcess whenever a Packet is available at any of
   // the input streams, or any input stream becomes done.
@@ -55,6 +55,9 @@ class ImmediateInputStreamHandler : public InputStreamHandler {
   // specified timestamp, leaving other input streams unaffected.
   void FillInputSet(Timestamp input_timestamp,
                     InputStreamShardSet* input_set) override;
+
+  // Returns the number of sync-sets maintained by this input-handler.
+  int SyncSetCount() override;
 
   absl::Mutex mutex_;
   // The packet-set builder for each input stream.
@@ -80,7 +83,7 @@ void ImmediateInputStreamHandler::PrepareForRun(
     std::function<void()> headers_ready_callback,
     std::function<void()> notification_callback,
     std::function<void(CalculatorContext*)> schedule_callback,
-    std::function<void(::mediapipe::Status)> error_callback) {
+    std::function<void(mediapipe::Status)> error_callback) {
   {
     absl::MutexLock lock(&mutex_);
     for (int i = 0; i < sync_sets_.size(); ++i) {
@@ -116,10 +119,19 @@ NodeReadiness ImmediateInputStreamHandler::GetNodeReadiness(
       CHECK_EQ(stream_ts, Timestamp::Done());
       if (ProcessTimestampBounds()) {
         // With kReadyForClose, the timestamp-bound Done is returned.
-        // This bound is processed using the preceding input-timestamp.
         // TODO: Make all InputStreamHandlers process Done() like this.
-        ready_timestamps_[i] = stream_ts.PreviousAllowedInStream();
-        input_timestamp = std::min(input_timestamp, ready_timestamps_[i]);
+        static const Timestamp kDonePrecedingTimestamp =
+            Timestamp::Done().PreviousAllowedInStream();
+        if (prev_ts < kDonePrecedingTimestamp) {
+          // When kReadyForClose is received for the first time for a sync set,
+          // it is processed using the timestamp preceding Done() to indicate
+          // input stream is done, but still needs to be processed.
+          min_bound = std::min(min_bound, kDonePrecedingTimestamp);
+          input_timestamp = std::min(input_timestamp, kDonePrecedingTimestamp);
+          ready_timestamps_[i] = kDonePrecedingTimestamp;
+        } else {
+          ready_timestamps_[i] = Timestamp::Done();
+        }
       } else if (prev_ts < Timestamp::Done()) {
         stream_became_done = true;
         ready_timestamps_[i] = Timestamp::Done();
@@ -158,6 +170,11 @@ void ImmediateInputStreamHandler::FillInputSet(Timestamp input_timestamp,
       sync_sets_[i].FillInputBounds(input_set);
     }
   }
+}
+
+int ImmediateInputStreamHandler::SyncSetCount() {
+  absl::MutexLock lock(&mutex_);
+  return sync_sets_.size();
 }
 
 }  // namespace mediapipe

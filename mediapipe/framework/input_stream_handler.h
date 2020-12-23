@@ -84,13 +84,13 @@ class InputStreamHandler {
   // InputStreamHandler::input_stream_managers_ (meaning it should point
   // to somewhere in the middle of the master flat array of all input
   // stream managers).
-  ::mediapipe::Status InitializeInputStreamManagers(
+  mediapipe::Status InitializeInputStreamManagers(
       InputStreamManager* flat_input_stream_managers);
 
   InputStreamManager* GetInputStreamManager(CollectionItemId id);
 
   // Sets up the InputStreamShardSet by propagating data from the managers.
-  ::mediapipe::Status SetupInputShards(InputStreamShardSet* input_shards);
+  mediapipe::Status SetupInputShards(InputStreamShardSet* input_shards);
 
   // Returns a vector of pairs of stream name and queue size for monitoring
   // purpose.
@@ -106,7 +106,7 @@ class InputStreamHandler {
       std::function<void()> headers_ready_callback,
       std::function<void()> notification_callback,
       std::function<void(CalculatorContext*)> schedule_callback,
-      std::function<void(::mediapipe::Status)> error_callback);
+      std::function<void(mediapipe::Status)> error_callback);
 
   int NumInputStreams() const { return input_stream_managers_.NumEntries(); }
 
@@ -155,7 +155,7 @@ class InputStreamHandler {
   // max number of invocations that are allowed to be scheduled is reached.
   // Returns true if at least one invocation has been scheduled.
   // The latest minimum timestamp bound of the input streams is returned in
-  // *input_bound iff the latest readiness of the node is kNotReady when the
+  // *input_bound if the latest readiness of the node is kNotReady when the
   // function returns. During batching, this value will be equal to the
   // timestamp of the first set of inputs in the batch. In other cases,
   // Timestamp::Unset() is returned.
@@ -184,6 +184,9 @@ class InputStreamHandler {
 
   // When true, Calculator::Process is called for every input timestamp bound.
   bool ProcessTimestampBounds() { return process_timestamps_; }
+
+  // Returns the number of sync-sets populated by this input stream handler.
+  virtual int SyncSetCount() { return 1; }
 
   // A helper class to build input packet sets for a certain set of streams.
   //
@@ -283,7 +286,7 @@ class InputStreamHandler {
   std::function<void()> notification_;
   // A callback to schedule the node with the prepared calculator context.
   std::function<void(CalculatorContext*)> schedule_callback_;
-  std::function<void(::mediapipe::Status)> error_callback_;
+  std::function<void(mediapipe::Status)> error_callback_;
 
  private:
   // Indicates when to fill the input set. If true, every input set will be
@@ -315,12 +318,11 @@ using InputStreamHandlerRegistry = GlobalFactoryRegistry<
 }  // namespace mediapipe
 
 // Macro for registering the input stream handler.
-#define REGISTER_INPUT_STREAM_HANDLER(name)                                 \
-  REGISTER_FACTORY_FUNCTION_QUALIFIED(                                      \
-      ::mediapipe::InputStreamHandlerRegistry, input_handler_registration,  \
-      name,                                                                 \
-      absl::make_unique<name, std::shared_ptr<tool::TagMap>,                \
-                        CalculatorContextManager*, const MediaPipeOptions&, \
+#define REGISTER_INPUT_STREAM_HANDLER(name)                                    \
+  REGISTER_FACTORY_FUNCTION_QUALIFIED(                                         \
+      mediapipe::InputStreamHandlerRegistry, input_handler_registration, name, \
+      absl::make_unique<name, std::shared_ptr<tool::TagMap>,                   \
+                        CalculatorContextManager*, const MediaPipeOptions&,    \
                         bool>)
 
 #endif  // MEDIAPIPE_FRAMEWORK_INPUT_STREAM_HANDLER_H_

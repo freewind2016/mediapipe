@@ -10,14 +10,14 @@ http_archive(
     sha256 = "1dde365491125a3db70731e25658dfdd3bc5dbdfd11b840b3e987ecf043c7ca0",
 )
 load("@bazel_skylib//lib:versions.bzl", "versions")
-versions.check(minimum_bazel_version = "2.0.0")
+versions.check(minimum_bazel_version = "3.4.0")
 
 
-# ABSL cpp library lts_2020_02_25
+# ABSL cpp library lts_2020_09_23
 http_archive(
     name = "com_google_absl",
     urls = [
-        "https://github.com/abseil/abseil-cpp/archive/20200225.tar.gz",
+        "https://github.com/abseil/abseil-cpp/archive/20200923.tar.gz",
     ],
     # Remove after https://github.com/abseil/abseil-cpp/issues/326 is solved.
     patches = [
@@ -26,8 +26,8 @@ http_archive(
     patch_args = [
         "-p1",
     ],
-    strip_prefix = "abseil-cpp-20200225",
-    sha256 = "728a813291bdec2aa46eab8356ace9f75ac2ed9dfe2df5ab603c4e6c09f1c353"
+    strip_prefix = "abseil-cpp-20200923",
+    sha256 = "b3744a4f7a249d5eaf2309daad597631ce77ea62e0fc6abffbab4b4c3dc0fc08"
 )
 
 http_archive(
@@ -36,11 +36,33 @@ http_archive(
     urls = ["https://github.com/bazelbuild/rules_cc/archive/master.zip"],
 )
 
-# GoogleTest/GoogleMock framework. Used by most unit-tests.
 http_archive(
-     name = "com_google_googletest",
-     urls = ["https://github.com/google/googletest/archive/master.zip"],
-     strip_prefix = "googletest-master",
+   name = "rules_foreign_cc",
+   strip_prefix = "rules_foreign_cc-master",
+   url = "https://github.com/bazelbuild/rules_foreign_cc/archive/master.zip",
+)
+
+load("@rules_foreign_cc//:workspace_definitions.bzl", "rules_foreign_cc_dependencies")
+
+rules_foreign_cc_dependencies()
+
+# This is used to select all contents of the archives for CMake-based packages to give CMake access to them.
+all_content = """filegroup(name = "all", srcs = glob(["**"]), visibility = ["//visibility:public"])"""
+
+# GoogleTest/GoogleMock framework. Used by most unit-tests.
+# Last updated 2020-06-30.
+http_archive(
+    name = "com_google_googletest",
+    urls = ["https://github.com/google/googletest/archive/aee0f9d9b5b87796ee8a0ab26b7587ec30e8858e.zip"],
+    patches = [
+        # fix for https://github.com/google/googletest/issues/2817
+        "@//third_party:com_google_googletest_9d580ea80592189e6d44fa35bcf9cdea8bf620d6.diff"
+    ],
+    patch_args = [
+        "-p1",
+    ],
+    strip_prefix = "googletest-aee0f9d9b5b87796ee8a0ab26b7587ec30e8858e",
+    sha256 = "04a1751f94244307cebe695a69cc945f9387a80b0ef1af21394a490697c5c895",
 )
 
 # Google Benchmark library.
@@ -54,23 +76,30 @@ http_archive(
 # gflags needed by glog
 http_archive(
     name = "com_github_gflags_gflags",
-    sha256 = "6e16c8bc91b1310a44f3965e616383dbda48f83e8c1eaa2370a215057b00cabe",
-    strip_prefix = "gflags-77592648e3f3be87d6c7123eb81cbad75f9aef5a",
-    urls = [
-        "https://mirror.bazel.build/github.com/gflags/gflags/archive/77592648e3f3be87d6c7123eb81cbad75f9aef5a.tar.gz",
-        "https://github.com/gflags/gflags/archive/77592648e3f3be87d6c7123eb81cbad75f9aef5a.tar.gz",
-    ],
+    strip_prefix = "gflags-2.2.2",
+    sha256 = "19713a36c9f32b33df59d1c79b4958434cb005b5b47dc5400a7a4b078111d9b5",
+    url = "https://github.com/gflags/gflags/archive/v2.2.2.zip",
 )
 
-# glog
+# 2020-08-21
 http_archive(
     name = "com_github_glog_glog",
-    url = "https://github.com/google/glog/archive/v0.3.5.zip",
-    sha256 = "267103f8a1e9578978aa1dc256001e6529ef593e5aea38193d31c2872ee025e8",
-    strip_prefix = "glog-0.3.5",
-    build_file = "@//third_party:glog.BUILD",
+    strip_prefix = "glog-0a2e5931bd5ff22fd3bf8999eb8ce776f159cda6",
+    sha256 = "58c9b3b6aaa4dd8b836c0fd8f65d0f941441fb95e27212c5eeb9979cfd3592ab",
+    urls = [
+        "https://github.com/google/glog/archive/0a2e5931bd5ff22fd3bf8999eb8ce776f159cda6.zip",
+    ],
+)
+http_archive(
+    name = "com_github_glog_glog_no_gflags",
+    strip_prefix = "glog-0a2e5931bd5ff22fd3bf8999eb8ce776f159cda6",
+    sha256 = "58c9b3b6aaa4dd8b836c0fd8f65d0f941441fb95e27212c5eeb9979cfd3592ab",
+    build_file = "@//third_party:glog_no_gflags.BUILD",
+    urls = [
+        "https://github.com/google/glog/archive/0a2e5931bd5ff22fd3bf8999eb8ce776f159cda6.zip",
+    ],
     patches = [
-        "@//third_party:com_github_glog_glog_9779e5ea6ef59562b030248947f787d1256132ae.diff"
+        "@//third_party:com_github_glog_glog_9779e5ea6ef59562b030248947f787d1256132ae.diff",
     ],
     patch_args = [
         "-p1",
@@ -102,56 +131,61 @@ http_archive(
 )
 
 http_archive(
+    name = "com_google_protobuf",
+    sha256 = "a79d19dcdf9139fa4b81206e318e33d245c4c9da1ffed21c87288ed4380426f9",
+    strip_prefix = "protobuf-3.11.4",
+    urls = ["https://github.com/protocolbuffers/protobuf/archive/v3.11.4.tar.gz"],
+    patches = [
+        "@//third_party:com_google_protobuf_fixes.diff"
+    ],
+    patch_args = [
+        "-p1",
+    ],
+)
+
+http_archive(
     name = "com_google_audio_tools",
     strip_prefix = "multichannel-audio-tools-master",
     urls = ["https://github.com/google/multichannel-audio-tools/archive/master.zip"],
 )
 
-# Needed by TensorFlow
+# 2020-07-09
 http_archive(
-    name = "io_bazel_rules_closure",
-    sha256 = "e0a111000aeed2051f29fcc7a3f83be3ad8c6c93c186e64beb1ad313f0c7f9f9",
-    strip_prefix = "rules_closure-cf1e44edb908e9616030cc83d085989b8e6cd6df",
-    urls = [
-        "http://mirror.tensorflow.org/github.com/bazelbuild/rules_closure/archive/cf1e44edb908e9616030cc83d085989b8e6cd6df.tar.gz",
-        "https://github.com/bazelbuild/rules_closure/archive/cf1e44edb908e9616030cc83d085989b8e6cd6df.tar.gz",  # 2019-04-04
-    ],
+    name = "pybind11_bazel",
+    strip_prefix = "pybind11_bazel-203508e14aab7309892a1c5f7dd05debda22d9a5",
+    urls = ["https://github.com/pybind/pybind11_bazel/archive/203508e14aab7309892a1c5f7dd05debda22d9a5.zip"],
+    sha256 = "75922da3a1bdb417d820398eb03d4e9bd067c4905a4246d35a44c01d62154d91",
 )
 
-# 2020-04-01
-_TENSORFLOW_GIT_COMMIT = "805e47cea96c7e8c6fccf494d40a2392dc99fdd8"
-_TENSORFLOW_SHA256= "9ee3ae604c2e1345ac60345becee6d659364721513f9cb8652eb2e7138320ca5"
 http_archive(
-    name = "org_tensorflow",
+    name = "pybind11",
     urls = [
-      "https://mirror.bazel.build/github.com/tensorflow/tensorflow/archive/%s.tar.gz" % _TENSORFLOW_GIT_COMMIT,
-      "https://github.com/tensorflow/tensorflow/archive/%s.tar.gz" % _TENSORFLOW_GIT_COMMIT,
+        "https://storage.googleapis.com/mirror.tensorflow.org/github.com/pybind/pybind11/archive/v2.4.3.tar.gz",
+        "https://github.com/pybind/pybind11/archive/v2.4.3.tar.gz",
     ],
-    patches = [
-        "@//third_party:org_tensorflow_compatibility_fixes.diff",
-        "@//third_party:org_tensorflow_protobuf_updates.diff",
-    ],
-    patch_args = [
-        "-p1",
-    ],
-    strip_prefix = "tensorflow-%s" % _TENSORFLOW_GIT_COMMIT,
-    sha256 = _TENSORFLOW_SHA256,
+    sha256 = "1eed57bc6863190e35637290f97a20c81cfe4d9090ac0a24f3bbf08f265eb71d",
+    strip_prefix = "pybind11-2.4.3",
+    build_file = "@pybind11_bazel//:pybind11.BUILD",
 )
-
-load("@org_tensorflow//tensorflow:workspace.bzl", "tf_workspace")
-tf_workspace(tf_repo_name = "org_tensorflow")
 
 http_archive(
     name = "ceres_solver",
-    url = "https://github.com/ceres-solver/ceres-solver/archive/1.14.0.zip",
+    url = "https://github.com/ceres-solver/ceres-solver/archive/2.0.0.zip",
     patches = [
-        "@//third_party:ceres_solver_9bf9588988236279e1262f75d7f4d85711dfa172.diff"
+        "@//third_party:ceres_solver_compatibility_fixes.diff"
     ],
     patch_args = [
         "-p1",
     ],
-    strip_prefix = "ceres-solver-1.14.0",
-    sha256 = "5ba6d0db4e784621fda44a50c58bb23b0892684692f0c623e2063f9c19f192f1"
+    strip_prefix = "ceres-solver-2.0.0",
+    sha256 = "db12d37b4cebb26353ae5b7746c7985e00877baa8e7b12dc4d3a1512252fff3b"
+)
+
+http_archive(
+    name = "opencv",
+    build_file_content = all_content,
+    strip_prefix = "opencv-3.4.10",
+    urls = ["https://github.com/opencv/opencv/archive/3.4.10.tar.gz"],
 )
 
 new_local_repository(
@@ -169,13 +203,19 @@ new_local_repository(
 new_local_repository(
     name = "macos_opencv",
     build_file = "@//third_party:opencv_macos.BUILD",
-    path = "/usr",
+    path = "/usr/local/opt/opencv@3",
 )
 
 new_local_repository(
     name = "macos_ffmpeg",
     build_file = "@//third_party:ffmpeg_macos.BUILD",
-    path = "/usr",
+    path = "/usr/local/opt/ffmpeg",
+)
+
+new_local_repository(
+    name = "windows_opencv",
+    build_file = "@//third_party:opencv_windows.BUILD",
+    path = "C:\\opencv\\build",
 )
 
 http_archive(
@@ -236,6 +276,15 @@ load(
 
 swift_rules_dependencies()
 
+http_archive(
+    name = "build_bazel_apple_support",
+    sha256 = "122ebf7fe7d1c8e938af6aeaee0efe788a3a2449ece5a8d6a428cb18d6f88033",
+    urls = [
+        "https://storage.googleapis.com/mirror.tensorflow.org/github.com/bazelbuild/apple_support/releases/download/0.7.1/apple_support.0.7.1.tar.gz",
+        "https://github.com/bazelbuild/apple_support/releases/download/0.7.1/apple_support.0.7.1.tar.gz",
+    ],
+)
+
 load(
     "@build_bazel_apple_support//lib:repositories.bzl",
     "apple_support_dependencies",
@@ -271,24 +320,27 @@ load("@rules_jvm_external//:defs.bzl", "maven_install")
 maven_install(
     name = "maven",
     artifacts = [
-        "junit:junit:4.12",
-        "androidx.test.espresso:espresso-core:3.1.1",
-        "org.hamcrest:hamcrest-library:1.3",
         "androidx.concurrent:concurrent-futures:1.0.0-alpha03",
         "androidx.lifecycle:lifecycle-common:2.2.0",
         "androidx.annotation:annotation:aar:1.1.0",
         "androidx.appcompat:appcompat:aar:1.1.0-rc01",
-        "androidx.camera:camera-core:aar:1.0.0-alpha06",
-        "androidx.camera:camera-camera2:aar:1.0.0-alpha06",
+        "androidx.camera:camera-core:1.0.0-beta10",
+        "androidx.camera:camera-camera2:1.0.0-beta10",
+        "androidx.camera:camera-lifecycle:1.0.0-beta10",
         "androidx.constraintlayout:constraintlayout:aar:1.1.3",
         "androidx.core:core:aar:1.1.0-rc03",
         "androidx.legacy:legacy-support-v4:aar:1.0.0",
         "androidx.recyclerview:recyclerview:aar:1.1.0-beta02",
+        "androidx.test.espresso:espresso-core:3.1.1",
+        "com.github.bumptech.glide:glide:4.11.0",
         "com.google.android.material:material:aar:1.0.0-rc01",
         "com.google.code.findbugs:jsr305:3.0.2",
         "com.google.flogger:flogger-system-backend:0.3.1",
         "com.google.flogger:flogger:0.3.1",
         "com.google.guava:guava:27.0.1-android",
+        "com.google.guava:listenablefuture:1.0",
+        "junit:junit:4.12",
+        "org.hamcrest:hamcrest-library:1.3",
     ],
     repositories = [
         "https://jcenter.bintray.com",
@@ -299,3 +351,37 @@ maven_install(
     fetch_sources = True,
     version_conflict_policy = "pinned",
 )
+
+# Needed by TensorFlow
+http_archive(
+    name = "io_bazel_rules_closure",
+    sha256 = "e0a111000aeed2051f29fcc7a3f83be3ad8c6c93c186e64beb1ad313f0c7f9f9",
+    strip_prefix = "rules_closure-cf1e44edb908e9616030cc83d085989b8e6cd6df",
+    urls = [
+        "http://mirror.tensorflow.org/github.com/bazelbuild/rules_closure/archive/cf1e44edb908e9616030cc83d085989b8e6cd6df.tar.gz",
+        "https://github.com/bazelbuild/rules_closure/archive/cf1e44edb908e9616030cc83d085989b8e6cd6df.tar.gz",  # 2019-04-04
+    ],
+)
+
+#Tensorflow repo should always go after the other external dependencies.
+# 2020-12-09
+_TENSORFLOW_GIT_COMMIT = "0eadbb13cef1226b1bae17c941f7870734d97f8a"
+_TENSORFLOW_SHA256= "4ae06daa5b09c62f31b7bc1f781fd59053f286dd64355830d8c2ac601b795ef0"
+http_archive(
+    name = "org_tensorflow",
+    urls = [
+      "https://github.com/tensorflow/tensorflow/archive/%s.tar.gz" % _TENSORFLOW_GIT_COMMIT,
+    ],
+    patches = [
+        "@//third_party:org_tensorflow_compatibility_fixes.diff",
+        "@//third_party:org_tensorflow_objc_cxx17.diff",
+    ],
+    patch_args = [
+        "-p1",
+    ],
+    strip_prefix = "tensorflow-%s" % _TENSORFLOW_GIT_COMMIT,
+    sha256 = _TENSORFLOW_SHA256,
+)
+
+load("@org_tensorflow//tensorflow:workspace.bzl", "tf_workspace")
+tf_workspace(tf_repo_name = "org_tensorflow")

@@ -53,8 +53,7 @@ constexpr char kWidthTag[] = "WIDTH";
 
 REGISTER_CALCULATOR(ImageCroppingCalculator);
 
-::mediapipe::Status ImageCroppingCalculator::GetContract(
-    CalculatorContract* cc) {
+mediapipe::Status ImageCroppingCalculator::GetContract(CalculatorContract* cc) {
   RET_CHECK(cc->Inputs().HasTag(kImageTag) ^ cc->Inputs().HasTag(kImageGpuTag));
   RET_CHECK(cc->Outputs().HasTag(kImageTag) ^
             cc->Outputs().HasTag(kImageGpuTag));
@@ -116,10 +115,10 @@ REGISTER_CALCULATOR(ImageCroppingCalculator);
 #endif  //  !MEDIAPIPE_DISABLE_GPU
   }
 
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
-::mediapipe::Status ImageCroppingCalculator::Open(CalculatorContext* cc) {
+mediapipe::Status ImageCroppingCalculator::Open(CalculatorContext* cc) {
   cc->SetOffset(TimestampDiff(0));
 
   if (cc->Inputs().HasTag(kImageGpuTag)) {
@@ -127,6 +126,10 @@ REGISTER_CALCULATOR(ImageCroppingCalculator);
   }
 
   options_ = cc->Options<mediapipe::ImageCroppingCalculatorOptions>();
+  output_max_width_ =
+      options_.has_output_max_width() ? options_.output_max_width() : FLT_MAX;
+  output_max_height_ =
+      options_.has_output_max_height() ? options_.output_max_height() : FLT_MAX;
 
   if (use_gpu_) {
 #if !defined(MEDIAPIPE_DISABLE_GPU)
@@ -143,38 +146,38 @@ REGISTER_CALCULATOR(ImageCroppingCalculator);
     MP_RETURN_IF_ERROR(ValidateBorderModeForCPU(cc));
   }
 
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
-::mediapipe::Status ImageCroppingCalculator::Process(CalculatorContext* cc) {
+mediapipe::Status ImageCroppingCalculator::Process(CalculatorContext* cc) {
   if (cc->Inputs().HasTag(kRectTag) && cc->Inputs().Tag(kRectTag).IsEmpty()) {
     VLOG(1) << "RECT is empty for timestamp: " << cc->InputTimestamp();
-    return ::mediapipe::OkStatus();
+    return mediapipe::OkStatus();
   }
   if (cc->Inputs().HasTag(kNormRectTag) &&
       cc->Inputs().Tag(kNormRectTag).IsEmpty()) {
     VLOG(1) << "NORM_RECT is empty for timestamp: " << cc->InputTimestamp();
-    return ::mediapipe::OkStatus();
+    return mediapipe::OkStatus();
   }
   if (use_gpu_) {
 #if !defined(MEDIAPIPE_DISABLE_GPU)
     MP_RETURN_IF_ERROR(
-        gpu_helper_.RunInGlContext([this, cc]() -> ::mediapipe::Status {
+        gpu_helper_.RunInGlContext([this, cc]() -> mediapipe::Status {
           if (!gpu_initialized_) {
             MP_RETURN_IF_ERROR(InitGpu(cc));
             gpu_initialized_ = true;
           }
           MP_RETURN_IF_ERROR(RenderGpu(cc));
-          return ::mediapipe::OkStatus();
+          return mediapipe::OkStatus();
         }));
 #endif  //  !MEDIAPIPE_DISABLE_GPU
   } else {
     MP_RETURN_IF_ERROR(RenderCpu(cc));
   }
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
-::mediapipe::Status ImageCroppingCalculator::Close(CalculatorContext* cc) {
+mediapipe::Status ImageCroppingCalculator::Close(CalculatorContext* cc) {
 #if !defined(MEDIAPIPE_DISABLE_GPU)
   gpu_helper_.RunInGlContext([this] {
     if (program_) glDeleteProgram(program_);
@@ -183,16 +186,16 @@ REGISTER_CALCULATOR(ImageCroppingCalculator);
   gpu_initialized_ = false;
 #endif  //  !MEDIAPIPE_DISABLE_GPU
 
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
-::mediapipe::Status ImageCroppingCalculator::ValidateBorderModeForCPU(
+mediapipe::Status ImageCroppingCalculator::ValidateBorderModeForCPU(
     CalculatorContext* cc) {
   int border_mode;
   return GetBorderModeForOpenCV(cc, &border_mode);
 }
 
-::mediapipe::Status ImageCroppingCalculator::ValidateBorderModeForGPU(
+mediapipe::Status ImageCroppingCalculator::ValidateBorderModeForGPU(
     CalculatorContext* cc) {
   mediapipe::ImageCroppingCalculatorOptions options =
       cc->Options<mediapipe::ImageCroppingCalculatorOptions>();
@@ -209,12 +212,12 @@ REGISTER_CALCULATOR(ImageCroppingCalculator);
                        << options.border_mode();
   }
 
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
-::mediapipe::Status ImageCroppingCalculator::RenderCpu(CalculatorContext* cc) {
+mediapipe::Status ImageCroppingCalculator::RenderCpu(CalculatorContext* cc) {
   if (cc->Inputs().Tag(kImageTag).IsEmpty()) {
-    return ::mediapipe::OkStatus();
+    return mediapipe::OkStatus();
   }
   const auto& input_img = cc->Inputs().Tag(kImageTag).Get<ImageFrame>();
   cv::Mat input_mat = formats::MatView(&input_img);
@@ -234,20 +237,27 @@ REGISTER_CALCULATOR(ImageCroppingCalculator);
   cv::Mat src_points;
   cv::boxPoints(min_rect, src_points);
 
+  float output_width = min_rect.size.width;
+  float output_height = min_rect.size.height;
+  float scale = std::min({1.0f, output_max_width_ / output_width,
+                          output_max_height_ / output_height});
+  output_width *= scale;
+  output_height *= scale;
+
   float dst_corners[8] = {0,
-                          min_rect.size.height - 1,
+                          output_height - 1,
                           0,
                           0,
-                          min_rect.size.width - 1,
+                          output_width - 1,
                           0,
-                          min_rect.size.width - 1,
-                          min_rect.size.height - 1};
+                          output_width - 1,
+                          output_height - 1};
   cv::Mat dst_points = cv::Mat(4, 2, CV_32F, dst_corners);
   cv::Mat projection_matrix =
       cv::getPerspectiveTransform(src_points, dst_points);
   cv::Mat cropped_image;
   cv::warpPerspective(input_mat, cropped_image, projection_matrix,
-                      cv::Size(min_rect.size.width, min_rect.size.height),
+                      cv::Size(output_width, output_height),
                       /* flags = */ 0,
                       /* borderMode = */ border_mode);
 
@@ -257,12 +267,12 @@ REGISTER_CALCULATOR(ImageCroppingCalculator);
   cropped_image.copyTo(output_mat);
   cc->Outputs().Tag(kImageTag).Add(output_frame.release(),
                                    cc->InputTimestamp());
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
-::mediapipe::Status ImageCroppingCalculator::RenderGpu(CalculatorContext* cc) {
+mediapipe::Status ImageCroppingCalculator::RenderGpu(CalculatorContext* cc) {
   if (cc->Inputs().Tag(kImageGpuTag).IsEmpty()) {
-    return ::mediapipe::OkStatus();
+    return mediapipe::OkStatus();
   }
 #if !defined(MEDIAPIPE_DISABLE_GPU)
   const Packet& input_packet = cc->Inputs().Tag(kImageGpuTag).Value();
@@ -297,7 +307,7 @@ REGISTER_CALCULATOR(ImageCroppingCalculator);
   dst_tex.Release();
 #endif  //  !MEDIAPIPE_DISABLE_GPU
 
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
 void ImageCroppingCalculator::GlRender() {
@@ -348,7 +358,7 @@ void ImageCroppingCalculator::GlRender() {
 #endif  //  !MEDIAPIPE_DISABLE_GPU
 }
 
-::mediapipe::Status ImageCroppingCalculator::InitGpu(CalculatorContext* cc) {
+mediapipe::Status ImageCroppingCalculator::InitGpu(CalculatorContext* cc) {
 #if !defined(MEDIAPIPE_DISABLE_GPU)
   const GLint attr_location[NUM_ATTRIBUTES] = {
       ATTRIB_VERTEX,
@@ -397,7 +407,7 @@ void ImageCroppingCalculator::GlRender() {
   glUniform1i(glGetUniformLocation(program_, "input_frame"), 1);
 #endif  //  !MEDIAPIPE_DISABLE_GPU
 
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
 // For GPU only.
@@ -439,6 +449,12 @@ void ImageCroppingCalculator::GetOutputDimensions(CalculatorContext* cc,
 
   int width = static_cast<int>(std::round((col_max - col_min) * src_width));
   int height = static_cast<int>(std::round((row_max - row_min) * src_height));
+
+  float scale =
+      std::min({1.0f, output_max_width_ / width, output_max_height_ / height});
+  width *= scale;
+  height *= scale;
+
   // Minimum output dimension 1x1 prevents creation of textures with 0x0.
   *dst_width = std::max(1, width);
   *dst_height = std::max(1, height);
@@ -514,16 +530,10 @@ RectSpec ImageCroppingCalculator::GetCropSpecs(const CalculatorContext* cc,
     }
   }
 
-  return {
-      .width = crop_width,
-      .height = crop_height,
-      .center_x = x_center,
-      .center_y = y_center,
-      .rotation = rotation,
-  };
+  return {crop_width, crop_height, x_center, y_center, rotation};
 }
 
-::mediapipe::Status ImageCroppingCalculator::GetBorderModeForOpenCV(
+mediapipe::Status ImageCroppingCalculator::GetBorderModeForOpenCV(
     CalculatorContext* cc, int* border_mode) {
   mediapipe::ImageCroppingCalculatorOptions options =
       cc->Options<mediapipe::ImageCroppingCalculatorOptions>();
@@ -540,7 +550,7 @@ RectSpec ImageCroppingCalculator::GetCropSpecs(const CalculatorContext* cc,
                        << options.border_mode();
   }
 
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
 }  // namespace mediapipe

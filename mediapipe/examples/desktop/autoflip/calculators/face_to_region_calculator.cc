@@ -55,9 +55,9 @@ class FaceToRegionCalculator : public CalculatorBase {
   FaceToRegionCalculator(const FaceToRegionCalculator&) = delete;
   FaceToRegionCalculator& operator=(const FaceToRegionCalculator&) = delete;
 
-  static ::mediapipe::Status GetContract(mediapipe::CalculatorContract* cc);
-  ::mediapipe::Status Open(mediapipe::CalculatorContext* cc) override;
-  ::mediapipe::Status Process(mediapipe::CalculatorContext* cc) override;
+  static mediapipe::Status GetContract(mediapipe::CalculatorContract* cc);
+  mediapipe::Status Open(mediapipe::CalculatorContext* cc) override;
+  mediapipe::Status Process(mediapipe::CalculatorContext* cc) override;
 
  private:
   double NormalizeX(const int pixel);
@@ -78,21 +78,34 @@ REGISTER_CALCULATOR(FaceToRegionCalculator);
 
 FaceToRegionCalculator::FaceToRegionCalculator() {}
 
-::mediapipe::Status FaceToRegionCalculator::GetContract(
+mediapipe::Status FaceToRegionCalculator::GetContract(
     mediapipe::CalculatorContract* cc) {
-  cc->Inputs().Tag("VIDEO").Set<ImageFrame>();
+  if (cc->Inputs().HasTag("VIDEO")) {
+    cc->Inputs().Tag("VIDEO").Set<ImageFrame>();
+  }
   cc->Inputs().Tag("FACES").Set<std::vector<mediapipe::Detection>>();
   cc->Outputs().Tag("REGIONS").Set<DetectionSet>();
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
-::mediapipe::Status FaceToRegionCalculator::Open(
+mediapipe::Status FaceToRegionCalculator::Open(
     mediapipe::CalculatorContext* cc) {
   options_ = cc->Options<FaceToRegionCalculatorOptions>();
+  if (!cc->Inputs().HasTag("VIDEO")) {
+    RET_CHECK(!options_.use_visual_scorer())
+        << "VIDEO input must be provided when using visual_scorer.";
+    RET_CHECK(!options_.export_individual_face_landmarks())
+        << "VIDEO input must be provided when export_individual_face_landmarks "
+           "is set true.";
+    RET_CHECK(!options_.export_bbox_from_landmarks())
+        << "VIDEO input must be provided when export_bbox_from_landmarks "
+           "is set true.";
+  }
+
   scorer_ = absl::make_unique<VisualScorer>(options_.scorer_options());
   frame_width_ = -1;
   frame_height_ = -1;
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
 inline double FaceToRegionCalculator::NormalizeX(const int pixel) {
@@ -133,16 +146,21 @@ void FaceToRegionCalculator::ExtendSalientRegionWithPoint(
   }
 }
 
-::mediapipe::Status FaceToRegionCalculator::Process(
+mediapipe::Status FaceToRegionCalculator::Process(
     mediapipe::CalculatorContext* cc) {
-  if (cc->Inputs().Tag("VIDEO").Value().IsEmpty()) {
-    return ::mediapipe::UnknownErrorBuilder(MEDIAPIPE_LOC) << "No VIDEO input.";
+  if (cc->Inputs().HasTag("VIDEO") &&
+      cc->Inputs().Tag("VIDEO").Value().IsEmpty()) {
+    return mediapipe::UnknownErrorBuilder(MEDIAPIPE_LOC)
+           << "No VIDEO input at time " << cc->InputTimestamp().Seconds();
   }
 
-  cv::Mat frame =
-      mediapipe::formats::MatView(&cc->Inputs().Tag("VIDEO").Get<ImageFrame>());
-  frame_width_ = frame.cols;
-  frame_height_ = frame.rows;
+  cv::Mat frame;
+  if (cc->Inputs().HasTag("VIDEO")) {
+    frame = mediapipe::formats::MatView(
+        &cc->Inputs().Tag("VIDEO").Get<ImageFrame>());
+    frame_width_ = frame.cols;
+    frame_height_ = frame.rows;
+  }
 
   auto region_set = ::absl::make_unique<DetectionSet>();
   if (!cc->Inputs().Tag("FACES").Value().IsEmpty()) {
@@ -262,7 +280,7 @@ void FaceToRegionCalculator::ExtendSalientRegionWithPoint(
   }
   cc->Outputs().Tag("REGIONS").Add(region_set.release(), cc->InputTimestamp());
 
-  return ::mediapipe::OkStatus();
+  return mediapipe::OkStatus();
 }
 
 }  // namespace autoflip

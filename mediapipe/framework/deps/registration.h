@@ -26,6 +26,7 @@
 
 #include "absl/base/macros.h"
 #include "absl/base/thread_annotations.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
@@ -66,7 +67,7 @@ namespace mediapipe {
 //  class Client {};
 //
 //  using ClientRegistry =
-//      GlobalFactoryRegistry<::mediapipe::StatusOr<unique_ptr<Client>>;
+//      GlobalFactoryRegistry<mediapipe::StatusOr<unique_ptr<Client>>;
 //
 //  class MyClient : public Client {
 //   public:
@@ -83,7 +84,7 @@ namespace mediapipe {
 //      ::my_ns::MyClient,
 //      []() {
 //        auto backend = absl::make_unique<Backend>("/path/to/backend");
-//        const ::mediapipe::Status status = backend->Init();
+//        const mediapipe::Status status = backend->Init();
 //        if (!status.ok()) {
 //          return status;
 //        }
@@ -94,8 +95,8 @@ namespace mediapipe {
 //
 // === Using the registry to create instances ==============================
 //
-//  // Registry will return ::mediapipe::StatusOr<Object>
-//  ::mediapipe::StatusOr<unique_ptr<Widget>> s_or_widget =
+//  // Registry will return mediapipe::StatusOr<Object>
+//  mediapipe::StatusOr<unique_ptr<Widget>> s_or_widget =
 //      WidgetRegistry::CreateByName(
 //          "my_ns.MyWidget", std::move(gadget), thing);
 //  // Registry will return NOT_FOUND if the name is unknown.
@@ -114,7 +115,7 @@ namespace mediapipe {
 //  // This might be useful if clients outside of your codebase are registering
 //  // plugins.
 //  for (const auto& name : WidgetRegistry::GetRegisteredNames()) {
-//    ::mediapipe::StatusOr<unique_ptr<Widget>> s_or_widget =
+//    mediapipe::StatusOr<unique_ptr<Widget>> s_or_widget =
 //        WidgetRegistry::CreateByName(name, std::move(gadget), thing);
 //    ...
 //  }
@@ -133,19 +134,19 @@ constexpr char kNameSep[] = ".";
 
 template <typename T>
 struct WrapStatusOr {
-  using type = ::mediapipe::StatusOr<T>;
+  using type = mediapipe::StatusOr<T>;
 };
 
 // Specialization to avoid double-wrapping types that are already StatusOrs.
 template <typename T>
-struct WrapStatusOr<::mediapipe::StatusOr<T>> {
-  using type = ::mediapipe::StatusOr<T>;
+struct WrapStatusOr<mediapipe::StatusOr<T>> {
+  using type = mediapipe::StatusOr<T>;
 };
 }  // namespace registration_internal
 
 class NamespaceWhitelist {
  public:
-  static const std::unordered_set<std::string>& TopNamespaces();
+  static const absl::flat_hash_set<std::string>& TopNamespaces();
 };
 
 template <typename R, typename... Args>
@@ -195,8 +196,8 @@ class FunctionRegistry {
       absl::ReaderMutexLock lock(&lock_);
       auto it = functions_.find(name);
       if (it == functions_.end()) {
-        return ::mediapipe::NotFoundError("No registered object with name: " +
-                                          name);
+        return mediapipe::NotFoundError("No registered object with name: " +
+                                        name);
       }
       function = it->second;
     }
@@ -322,16 +323,20 @@ class GlobalFactoryRegistry {
     return functions()->Register(name, std::move(func));
   }
 
-  // Same as CreateByNameInNamespace but without a namespace.
+  // Invokes the specified factory function and returns the result.
+  // If using namespaces with this registry, the variant with a namespace
+  // argument should be used.
   template <typename... Args2>
   static typename Functions::ReturnType CreateByName(const std::string& name,
                                                      Args2&&... args) {
-    return CreateByNameInNamespace("", name, std::forward<Args2>(args)...);
+    return functions()->Invoke(name, std::forward<Args2>(args)...);
   }
 
-  // Same as IsRegistered(ns, name) but without a namespace.
+  // Returns true if the specified factory function is available.
+  // If using namespaces with this registry, the variant with a namespace
+  // argument should be used.
   static bool IsRegistered(const std::string& name) {
-    return functions()->IsRegistered("", name);
+    return functions()->IsRegistered(name);
   }
 
   static std::unordered_set<std::string> GetRegisteredNames() {
@@ -374,12 +379,12 @@ class GlobalFactoryRegistry {
 
 #define MEDIAPIPE_REGISTER_FACTORY_FUNCTION(RegistryType, name, ...) \
   static auto* REGISTRY_STATIC_VAR(registration_##name, __LINE__) =  \
-      new ::mediapipe::RegistrationToken(                            \
+      new mediapipe::RegistrationToken(                              \
           RegistryType::Register(#name, __VA_ARGS__))
 
 #define REGISTER_FACTORY_FUNCTION_QUALIFIED(RegistryType, var_name, name, ...) \
   static auto* REGISTRY_STATIC_VAR(var_name, __LINE__) =                       \
-      new ::mediapipe::RegistrationToken(                                      \
+      new mediapipe::RegistrationToken(                                        \
           RegistryType::Register(#name, __VA_ARGS__))
 
 }  // namespace mediapipe

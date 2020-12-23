@@ -24,6 +24,7 @@
 #include "mediapipe/java/com/google/mediapipe/framework/jni/jni_util.h"
 
 using mediapipe::android::JStringToStdString;
+using mediapipe::android::ThrowIfError;
 
 namespace {
 mediapipe::Status AddSidePacketsIntoGraph(
@@ -54,7 +55,7 @@ mediapipe::Status AddStreamHeadersIntoGraph(
     jobjectArray stream_names, jlongArray packets) {
   jsize num_headers = env->GetArrayLength(stream_names);
   if (num_headers != env->GetArrayLength(packets)) {
-    return mediapipe::Status(::mediapipe::StatusCode::kFailedPrecondition,
+    return mediapipe::Status(mediapipe::StatusCode::kFailedPrecondition,
                              "Number of streams and packets doesn't match!");
   }
   jlong* packets_array_ref = env->GetLongArrayElements(packets, nullptr);
@@ -70,15 +71,6 @@ mediapipe::Status AddStreamHeadersIntoGraph(
   return mediapipe::OkStatus();
 }
 
-// Throws a MediaPipeException for any non-ok mediapipe::Status.
-// Note that the exception is thrown after execution returns to Java.
-bool ThrowIfError(JNIEnv* env, mediapipe::Status status) {
-  if (!status.ok()) {
-    env->Throw(mediapipe::android::CreateMediaPipeException(env, status));
-    return true;
-  }
-  return false;
-}
 }  // namespace
 
 JNIEXPORT jlong JNICALL GRAPH_METHOD(nativeCreateGraph)(JNIEnv* env,
@@ -188,7 +180,7 @@ GRAPH_METHOD(nativeAddPacketCallback)(JNIEnv* env, jobject thiz, jlong context,
   jobject global_callback_ref = env->NewGlobalRef(callback);
   if (!global_callback_ref) {
     ThrowIfError(
-        env, ::mediapipe::InternalError("Failed to allocate packet callback"));
+        env, mediapipe::InternalError("Failed to allocate packet callback"));
     return;
   }
   ThrowIfError(env, mediapipe_graph->AddCallbackHandler(output_stream_name,

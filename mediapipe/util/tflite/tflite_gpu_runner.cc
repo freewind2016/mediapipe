@@ -24,14 +24,50 @@
 #include "mediapipe/framework/port/status.h"
 #include "mediapipe/framework/port/status_macros.h"
 #include "mediapipe/framework/port/statusor.h"
+#include "tensorflow/lite/core/api/op_resolver.h"
 #include "tensorflow/lite/delegates/gpu/api.h"
 #include "tensorflow/lite/delegates/gpu/common/model.h"
 #include "tensorflow/lite/delegates/gpu/gl/api2.h"
 #include "tensorflow/lite/model.h"
 
+// This code should be enabled as soon as TensorFlow version, which mediapipe
+// uses, will include this module.
+#ifdef __ANDROID__
+#include "tensorflow/lite/delegates/gpu/cl/api.h"
+#endif
+#include "tensorflow/lite/delegates/gpu/common/testing/tflite_model_reader.h"
+
 namespace tflite {
 namespace gpu {
 namespace {
+
+// TODO: Find a better place for these utility functions.
+void UpdateShapes(const tflite::Interpreter& interpreter,
+                  const std::vector<int>& indices,
+                  std::vector<std::vector<int>>* shapes) {
+  shapes->resize(indices.size());
+  for (int i = 0; i < indices.size(); ++i) {
+    const TfLiteTensor* tensor = interpreter.tensor(indices[i]);
+    shapes->at(i).resize(tensor->dims->size);
+    for (int j = 0; j < tensor->dims->size; ++j) {
+      shapes->at(i)[j] = tensor->dims->data[j];
+    }
+  }
+}
+
+absl::Status InitializeShapes(const tflite::FlatBufferModel& flatbuffer,
+                              const tflite::OpResolver& op_resolver,
+                              std::vector<std::vector<int>>* input_shapes,
+                              std::vector<std::vector<int>>* output_shapes) {
+  std::unique_ptr<tflite::Interpreter> interpreter;
+  tflite::InterpreterBuilder interpreter_builder(flatbuffer, op_resolver);
+  if (interpreter_builder(&interpreter) != kTfLiteOk || !interpreter) {
+    return absl::InternalError("Unable to prepare TfLite interpreter.");
+  }
+  UpdateShapes(*interpreter, interpreter->inputs(), input_shapes);
+  UpdateShapes(*interpreter, interpreter->outputs(), output_shapes);
+  return absl::OkStatus();
+}
 
 ObjectDef GetSSBOObjectDef(int channels) {
   ObjectDef gpu_object_def;
@@ -48,19 +84,36 @@ ObjectDef GetSSBOObjectDef(int channels) {
 }  // namespace
 
 mediapipe::Status TFLiteGPURunner::InitializeWithModel(
-    const tflite::FlatBufferModel& flatbuffer) {
-  for (const auto& input : graph_->inputs()) {
+    const tflite::FlatBufferModel& flatbuffer,
+    const tflite::OpResolver& op_resolver) {
+  // GraphFloat32 is created twice because, when OpenCL and OpenGL backends are
+  // initialized, different backend-specific graph transformations happen
+  // in-place. As GraphFloat32 is not copyable by design, we keep two copies of
+  // the graph until inference is built. This decision doesn't affect the amount
+  // of run time memory used, because both graph_gl_ and graph_cl_ are deleted
+  // in the end of the initialization stage.
+  graph_gl_ = std::make_unique<GraphFloat32>();
+  graph_cl_ = std::make_unique<GraphFloat32>();
+  MP_RETURN_IF_ERROR(
+      BuildFromFlatBuffer(flatbuffer, op_resolver, graph_gl_.get()));
+  MP_RETURN_IF_ERROR(
+      BuildFromFlatBuffer(flatbuffer, op_resolver, graph_cl_.get()));
+
+  for (const auto& input : graph_gl_->inputs()) {
     input_shapes_.push_back(input->tensor.shape);
   }
-  for (const auto& output : graph_->outputs()) {
+  for (const auto& output : graph_gl_->outputs()) {
     output_shapes_.push_back(output->tensor.shape);
   }
+  MP_RETURN_IF_ERROR(InitializeShapes(flatbuffer, op_resolver,
+                                      &input_shape_from_model_,
+                                      &output_shape_from_model_));
   return absl::OkStatus();
 }
 
 mediapipe::StatusOr<int64_t> TFLiteGPURunner::GetInputElements(int id) {
   if (id >= input_shapes_.size()) {
-    return ::mediapipe::InternalError("Wrong input tensor id.");
+    return mediapipe::InternalError("Wrong input tensor id.");
   } else {
     return input_shapes_[id].DimensionsProduct();
   }
@@ -68,7 +121,7 @@ mediapipe::StatusOr<int64_t> TFLiteGPURunner::GetInputElements(int id) {
 
 mediapipe::StatusOr<int64_t> TFLiteGPURunner::GetOutputElements(int id) {
   if (id >= output_shapes_.size()) {
-    return ::mediapipe::InternalError("Wrong output tensor id.");
+    return mediapipe::InternalError("Wrong output tensor id.");
   } else {
     return output_shapes_[id].DimensionsProduct();
   }
@@ -77,7 +130,25 @@ mediapipe::StatusOr<int64_t> TFLiteGPURunner::GetOutputElements(int id) {
 mediapipe::Status TFLiteGPURunner::Build() {
   // 1. Prepare inference builder.
   std::unique_ptr<InferenceBuilder> builder;
-  MP_RETURN_IF_ERROR(InitializeOpenGL(&builder));
+  // By default, we try CL first & fall back to GL if that fails.
+  if (opencl_is_forced_) {
+    MP_RETURN_IF_ERROR(InitializeOpenCL(&builder));
+  } else if (opengl_is_forced_) {
+    MP_RETURN_IF_ERROR(InitializeOpenGL(&builder));
+  } else {
+    // try to build OpenCL first. If something goes wrong, fall back to OpenGL.
+    absl::Status status = InitializeOpenCL(&builder);
+    if (status.ok()) {
+      LOG(INFO) << "OpenCL backend is used.";
+    } else {
+      LOG(ERROR) << "Falling back to OpenGL: " << status.message();
+      MP_RETURN_IF_ERROR(InitializeOpenGL(&builder));
+    }
+  }
+
+  // Both graphs are not needed anymore. Make sure they are deleted.
+  graph_gl_.reset(nullptr);
+  graph_cl_.reset(nullptr);
 
   // 2. Describe output/input objects for created builder.
   for (int flow_index = 0; flow_index < input_shapes_.size(); ++flow_index) {
@@ -120,9 +191,29 @@ mediapipe::Status TFLiteGPURunner::InitializeOpenGL(
   gl_options.usage = options_.usage;
   MP_RETURN_IF_ERROR(
       NewInferenceEnvironment(env_options, &gl_environment_, &properties));
-  MP_RETURN_IF_ERROR(gl_environment_->NewInferenceBuilder(std::move(*graph_),
+  MP_RETURN_IF_ERROR(gl_environment_->NewInferenceBuilder(std::move(*graph_gl_),
                                                           gl_options, builder));
-  graph_.release();
+  return absl::OkStatus();
+}
+
+absl::Status TFLiteGPURunner::InitializeOpenCL(
+    std::unique_ptr<InferenceBuilder>* builder) {
+#ifdef __ANDROID__
+  cl::InferenceEnvironmentOptions env_options;
+  if (!serialized_binary_cache_.empty()) {
+    env_options.serialized_binary_cache = serialized_binary_cache_;
+  }
+  cl::InferenceEnvironmentProperties properties;
+  cl::InferenceOptions cl_options;
+  cl_options.priority1 = options_.priority1;
+  cl_options.priority2 = options_.priority2;
+  cl_options.priority3 = options_.priority3;
+  cl_options.usage = options_.usage;
+  MP_RETURN_IF_ERROR(
+      cl::NewInferenceEnvironment(env_options, &cl_environment_, &properties));
+  MP_RETURN_IF_ERROR(cl_environment_->NewInferenceBuilder(
+      cl_options, std::move(*graph_cl_), builder));
+#endif
   return absl::OkStatus();
 }
 

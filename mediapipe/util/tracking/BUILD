@@ -15,7 +15,7 @@
 
 load("//mediapipe/framework/port:build_config.bzl", "mediapipe_cc_proto_library")
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
 package(default_visibility = ["//visibility:public"])
 
@@ -318,6 +318,7 @@ cc_library(
         "//mediapipe/framework/port:integral_types",
         "//mediapipe/framework/port:logging",
         "//mediapipe/framework/port:vector",
+        "@com_google_absl//absl/container:node_hash_map",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -425,6 +426,7 @@ cc_library(
         "//mediapipe/framework/port:logging",
         "//mediapipe/framework/port:vector",
         "@com_google_absl//absl/container:node_hash_map",
+        "@com_google_absl//absl/container:node_hash_set",
         "@com_google_absl//absl/strings",
         "@eigen_archive//:eigen",
     ],
@@ -520,6 +522,7 @@ cc_library(
         "//mediapipe/framework/port:opencv_imgproc",
         "//mediapipe/framework/port:opencv_video",
         "//mediapipe/framework/port:vector",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:node_hash_set",
         "@com_google_absl//absl/memory",
         "@eigen_archive//:eigen",
@@ -618,6 +621,7 @@ cc_library(
         "//mediapipe/framework/port:opencv_imgproc",
         "//mediapipe/framework/port:vector",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/memory",
         "@eigen_archive//:eigen",
     ],

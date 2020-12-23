@@ -1,6 +1,8 @@
 #ifndef MEDIAPIPE_CALCULATORS_IMAGE_IMAGE_CROPPING_CALCULATOR_H_
 #define MEDIAPIPE_CALCULATORS_IMAGE_IMAGE_CROPPING_CALCULATOR_H_
 
+#include <float.h>
+
 #include "mediapipe/calculators/image/image_cropping_calculator.pb.h"
 #include "mediapipe/framework/calculator_framework.h"
 
@@ -56,30 +58,32 @@ class ImageCroppingCalculator : public CalculatorBase {
   ImageCroppingCalculator() = default;
   ~ImageCroppingCalculator() override = default;
 
-  static ::mediapipe::Status GetContract(CalculatorContract* cc);
-  ::mediapipe::Status Open(CalculatorContext* cc) override;
-  ::mediapipe::Status Process(CalculatorContext* cc) override;
-  ::mediapipe::Status Close(CalculatorContext* cc) override;
+  static mediapipe::Status GetContract(CalculatorContract* cc);
+  mediapipe::Status Open(CalculatorContext* cc) override;
+  mediapipe::Status Process(CalculatorContext* cc) override;
+  mediapipe::Status Close(CalculatorContext* cc) override;
   static RectSpec GetCropSpecs(const CalculatorContext* cc, int src_width,
                                int src_height);
 
  private:
-  ::mediapipe::Status ValidateBorderModeForCPU(CalculatorContext* cc);
-  ::mediapipe::Status ValidateBorderModeForGPU(CalculatorContext* cc);
-  ::mediapipe::Status RenderCpu(CalculatorContext* cc);
-  ::mediapipe::Status RenderGpu(CalculatorContext* cc);
-  ::mediapipe::Status InitGpu(CalculatorContext* cc);
+  mediapipe::Status ValidateBorderModeForCPU(CalculatorContext* cc);
+  mediapipe::Status ValidateBorderModeForGPU(CalculatorContext* cc);
+  mediapipe::Status RenderCpu(CalculatorContext* cc);
+  mediapipe::Status RenderGpu(CalculatorContext* cc);
+  mediapipe::Status InitGpu(CalculatorContext* cc);
   void GlRender();
   void GetOutputDimensions(CalculatorContext* cc, int src_width, int src_height,
                            int* dst_width, int* dst_height);
-  ::mediapipe::Status GetBorderModeForOpenCV(CalculatorContext* cc,
-                                             int* border_mode);
+  mediapipe::Status GetBorderModeForOpenCV(CalculatorContext* cc,
+                                           int* border_mode);
 
   mediapipe::ImageCroppingCalculatorOptions options_;
 
   bool use_gpu_ = false;
   // Output texture corners (4) after transoformation in normalized coordinates.
   float transformed_points_[8];
+  float output_max_width_ = FLT_MAX;
+  float output_max_height_ = FLT_MAX;
 #if !defined(MEDIAPIPE_DISABLE_GPU)
   bool gpu_initialized_ = false;
   mediapipe::GlCalculatorHelper gpu_helper_;
