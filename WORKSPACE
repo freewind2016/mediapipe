@@ -2,16 +2,19 @@ workspace(name = "mediapipe")
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-skylib_version = "0.9.0"
 http_archive(
     name = "bazel_skylib",
     type = "tar.gz",
-    url = "https://github.com/bazelbuild/bazel-skylib/releases/download/{}/bazel_skylib-{}.tar.gz".format (skylib_version, skylib_version),
-    sha256 = "1dde365491125a3db70731e25658dfdd3bc5dbdfd11b840b3e987ecf043c7ca0",
+    urls = [
+        "https://github.com/bazelbuild/bazel-skylib/releases/download/1.0.3/bazel-skylib-1.0.3.tar.gz",
+        "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.0.3/bazel-skylib-1.0.3.tar.gz",
+    ],
+    sha256 = "1c531376ac7e5a180e0237938a2536de0c54d93f5c278634818e0efc952dd56c",
 )
+load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
+bazel_skylib_workspace()
 load("@bazel_skylib//lib:versions.bzl", "versions")
-versions.check(minimum_bazel_version = "3.4.0")
-
+versions.check(minimum_bazel_version = "3.7.2")
 
 # ABSL cpp library lts_2020_09_23
 http_archive(
@@ -32,14 +35,14 @@ http_archive(
 
 http_archive(
     name = "rules_cc",
-    strip_prefix = "rules_cc-master",
-    urls = ["https://github.com/bazelbuild/rules_cc/archive/master.zip"],
+    strip_prefix = "rules_cc-main",
+    urls = ["https://github.com/bazelbuild/rules_cc/archive/main.zip"],
 )
 
 http_archive(
    name = "rules_foreign_cc",
-   strip_prefix = "rules_foreign_cc-master",
-   url = "https://github.com/bazelbuild/rules_foreign_cc/archive/master.zip",
+   strip_prefix = "rules_foreign_cc-0.1.0",
+   url = "https://github.com/bazelbuild/rules_foreign_cc/archive/0.1.0.zip",
 )
 
 load("@rules_foreign_cc//:workspace_definitions.bzl", "rules_foreign_cc_dependencies")
@@ -68,8 +71,8 @@ http_archive(
 # Google Benchmark library.
 http_archive(
     name = "com_google_benchmark",
-    urls = ["https://github.com/google/benchmark/archive/master.zip"],
-    strip_prefix = "benchmark-master",
+    urls = ["https://github.com/google/benchmark/archive/main.zip"],
+    strip_prefix = "benchmark-main",
     build_file = "@//third_party:benchmark.BUILD",
 )
 
@@ -117,7 +120,8 @@ http_archive(
 # libyuv
 http_archive(
     name = "libyuv",
-    urls = ["https://chromium.googlesource.com/libyuv/libyuv/+archive/refs/heads/master.tar.gz"],
+    # Error: operand type mismatch for `vbroadcastss' caused by commit 8a13626e42f7fdcf3a6acbb0316760ee54cda7d8.
+    urls = ["https://chromium.googlesource.com/libyuv/libyuv/+archive/2525698acba9bf9b701ba6b4d9584291a1f62257.tar.gz"],
     build_file = "@//third_party:libyuv.BUILD",
 )
 
@@ -238,6 +242,20 @@ http_archive(
     url = "https://github.com/opencv/opencv/releases/download/3.2.0/opencv-3.2.0-ios-framework.zip",
 )
 
+http_archive(
+    name = "stblib",
+    strip_prefix = "stb-b42009b3b9d4ca35bc703f5310eedc74f584be58",
+    sha256 = "13a99ad430e930907f5611325ec384168a958bf7610e63e60e2fd8e7b7379610",
+    urls = ["https://github.com/nothings/stb/archive/b42009b3b9d4ca35bc703f5310eedc74f584be58.tar.gz"],
+    build_file = "@//third_party:stblib.BUILD",
+    patches = [
+        "@//third_party:stb_image_impl.diff"
+    ],
+    patch_args = [
+        "-p1",
+    ],
+)
+
 # You may run setup_android.sh to install Android SDK and NDK.
 android_ndk_repository(
     name = "androidndk",
@@ -304,8 +322,8 @@ http_archive(
 
 # Maven dependencies.
 
-RULES_JVM_EXTERNAL_TAG = "3.2"
-RULES_JVM_EXTERNAL_SHA = "82262ff4223c5fda6fb7ff8bd63db8131b51b413d26eb49e3131037e79e324af"
+RULES_JVM_EXTERNAL_TAG = "4.0"
+RULES_JVM_EXTERNAL_SHA = "31701ad93dbfe544d597dbe62c9a1fdd76d81d8a9150c2bf1ecf928ecdf97169"
 
 http_archive(
     name = "rules_jvm_external",
@@ -318,7 +336,6 @@ load("@rules_jvm_external//:defs.bzl", "maven_install")
 
 # Important: there can only be one maven_install rule. Add new maven deps here.
 maven_install(
-    name = "maven",
     artifacts = [
         "androidx.concurrent:concurrent-futures:1.0.0-alpha03",
         "androidx.lifecycle:lifecycle-common:2.2.0",
@@ -334,6 +351,8 @@ maven_install(
         "androidx.test.espresso:espresso-core:3.1.1",
         "com.github.bumptech.glide:glide:4.11.0",
         "com.google.android.material:material:aar:1.0.0-rc01",
+        "com.google.auto.value:auto-value:1.8.1",
+        "com.google.auto.value:auto-value-annotations:1.8.1",
         "com.google.code.findbugs:jsr305:3.0.2",
         "com.google.flogger:flogger-system-backend:0.3.1",
         "com.google.flogger:flogger:0.3.1",
@@ -343,10 +362,10 @@ maven_install(
         "org.hamcrest:hamcrest-library:1.3",
     ],
     repositories = [
-        "https://jcenter.bintray.com",
         "https://maven.google.com",
         "https://dl.google.com/dl/android/maven2",
         "https://repo1.maven.org/maven2",
+        "https://jcenter.bintray.com",
     ],
     fetch_sources = True,
     version_conflict_policy = "pinned",
@@ -363,10 +382,10 @@ http_archive(
     ],
 )
 
-#Tensorflow repo should always go after the other external dependencies.
-# 2020-12-09
-_TENSORFLOW_GIT_COMMIT = "0eadbb13cef1226b1bae17c941f7870734d97f8a"
-_TENSORFLOW_SHA256= "4ae06daa5b09c62f31b7bc1f781fd59053f286dd64355830d8c2ac601b795ef0"
+# Tensorflow repo should always go after the other external dependencies.
+# 2021-06-07
+_TENSORFLOW_GIT_COMMIT = "700533808e6016dc458bb2eeecfca4babfc482ec"
+_TENSORFLOW_SHA256 = "b6edd7f4039bfc19f3e77594ecff558ba620091d0dc48181484b3d9085026126"
 http_archive(
     name = "org_tensorflow",
     urls = [
@@ -383,5 +402,7 @@ http_archive(
     sha256 = _TENSORFLOW_SHA256,
 )
 
-load("@org_tensorflow//tensorflow:workspace.bzl", "tf_workspace")
-tf_workspace(tf_repo_name = "org_tensorflow")
+load("@org_tensorflow//tensorflow:workspace3.bzl", "tf_workspace3")
+tf_workspace3()
+load("@org_tensorflow//tensorflow:workspace2.bzl", "tf_workspace2")
+tf_workspace2()

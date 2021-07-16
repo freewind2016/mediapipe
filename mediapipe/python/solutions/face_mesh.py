@@ -213,7 +213,7 @@ class FaceMesh(SolutionBase):
                 .ConstantSidePacketCalculatorOptions.ConstantSidePacket(
                     bool_value=not static_image_mode)
             ],
-            'facedetectionfrontcpu__TensorsToDetectionsCalculator.min_score_thresh':
+            'facedetectionshortrangecpu__TensorsToDetectionsCalculator.min_score_thresh':
                 min_detection_confidence,
             'facelandmarkcpu__ThresholdingCalculator.threshold':
                 min_tracking_confidence,
@@ -227,7 +227,7 @@ class FaceMesh(SolutionBase):
       image: An RGB image represented as a numpy ndarray.
 
     Raises:
-      RuntimeError: If the underlying graph occurs any error.
+      RuntimeError: If the underlying graph throws any error.
       ValueError: If the input image is not three channel RGB.
 
     Returns:

@@ -17,6 +17,14 @@ namespace mediapipe {
 namespace api2 {
 namespace builder {
 
+// Workaround for static_assert(false). Example:
+//   dependent_false<T>::value returns false.
+// For more information, see:
+// https://en.cppreference.com/w/cpp/language/if#Constexpr_If
+// TODO: migrate to a common utility when available.
+template <class T>
+struct dependent_false : std::false_type {};
+
 template <typename T>
 T& GetWithAutoGrow(std::vector<std::unique_ptr<T>>* vecp, int index) {
   auto& vec = *vecp;
@@ -207,6 +215,21 @@ class NodeBase {
 
   SideDestination<true> SideIn(const std::string& tag) {
     return SideDestination<true>(&in_sides_[tag]);
+  }
+
+  template <typename B, typename T, bool kIsOptional, bool kIsMultiple>
+  auto operator[](const PortCommon<B, T, kIsOptional, kIsMultiple>& port) {
+    if constexpr (std::is_same_v<B, OutputBase>) {
+      return Source<kIsMultiple, T>(&out_streams_[port.Tag()]);
+    } else if constexpr (std::is_same_v<B, InputBase>) {
+      return Destination<kIsMultiple, T>(&in_streams_[port.Tag()]);
+    } else if constexpr (std::is_same_v<B, SideOutputBase>) {
+      return SideSource<kIsMultiple, T>(&out_sides_[port.Tag()]);
+    } else if constexpr (std::is_same_v<B, SideInputBase>) {
+      return SideDestination<kIsMultiple, T>(&in_sides_[port.Tag()]);
+    } else {
+      static_assert(dependent_false<B>::value, "Type not supported.");
+    }
   }
 
   // Convenience methods for accessing purely index-based ports.
@@ -429,6 +452,24 @@ class Graph {
     return Dst(&graph_boundary_.in_sides_[graph_output.Tag()]);
   }
 
+  template <typename B, typename T, bool kIsOptional, bool kIsMultiple>
+  auto operator[](const PortCommon<B, T, kIsOptional, kIsMultiple>& port) {
+    if constexpr (std::is_same_v<B, OutputBase>) {
+      return Destination<kIsMultiple, T>(
+          &graph_boundary_.in_streams_[port.Tag()]);
+    } else if constexpr (std::is_same_v<B, InputBase>) {
+      return Source<kIsMultiple, T>(&graph_boundary_.out_streams_[port.Tag()]);
+    } else if constexpr (std::is_same_v<B, SideOutputBase>) {
+      return SideDestination<kIsMultiple, T>(
+          &graph_boundary_.in_sides_[port.Tag()]);
+    } else if constexpr (std::is_same_v<B, SideInputBase>) {
+      return SideSource<kIsMultiple, T>(
+          &graph_boundary_.out_sides_[port.Tag()]);
+    } else {
+      static_assert(dependent_false<B>::value, "Type not supported.");
+    }
+  }
+
   // Returns the graph config. This can be used to instantiate and run the
   // graph.
   CalculatorGraphConfig GetConfig() {
@@ -481,8 +522,7 @@ class Graph {
   std::string TaggedName(const TagIndexLocation& loc, const std::string& name) {
     if (loc.tag.empty()) {
       // ParseTagIndexName does not allow using explicit indices without tags,
-      // while ParseTagIndex does. There is no explanation for this discrepancy
-      // in the CLs that introduced them (cl/143209019, cl/156499931).
+      // while ParseTagIndex does.
       // TODO: decide whether we should just allow it.
       return name;
     } else {
@@ -494,8 +534,8 @@ class Graph {
     }
   }
 
-  mediapipe::Status UpdateNodeConfig(const NodeBase& node,
-                                     CalculatorGraphConfig::Node* config) {
+  absl::Status UpdateNodeConfig(const NodeBase& node,
+                                CalculatorGraphConfig::Node* config) {
     config->set_calculator(node.type_);
     node.in_streams_.Visit(
         [&](const TagIndexLocation& loc, const DestinationBase& endpoint) {
@@ -521,8 +561,8 @@ class Graph {
     return {};
   }
 
-  mediapipe::Status UpdateNodeConfig(const PacketGenerator& node,
-                                     PacketGeneratorConfig* config) {
+  absl::Status UpdateNodeConfig(const PacketGenerator& node,
+                                PacketGeneratorConfig* config) {
     config->set_packet_generator(node.type_);
     node.in_sides_.Visit([&](const TagIndexLocation& loc,
                              const DestinationBase& endpoint) {
@@ -540,7 +580,7 @@ class Graph {
   }
 
   // For special boundary node.
-  mediapipe::Status UpdateBoundaryConfig(CalculatorGraphConfig* config) {
+  absl::Status UpdateBoundaryConfig(CalculatorGraphConfig* config) {
     graph_boundary_.in_streams_.Visit(
         [&](const TagIndexLocation& loc, const DestinationBase& endpoint) {
           CHECK(endpoint.source != nullptr);

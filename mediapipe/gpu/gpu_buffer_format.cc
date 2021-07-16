@@ -37,6 +37,7 @@ static void AdaptGlTextureInfoForGLES2(GlTextureInfo* info) {
       info->gl_internal_format = info->gl_format = GL_LUMINANCE;
       return;
     case GL_RG16F:
+    case GL_RG32F:
       // Should this be GL_RG_EXT instead?
       info->gl_internal_format = info->gl_format = GL_LUMINANCE_ALPHA;
       return;
@@ -51,16 +52,6 @@ static void AdaptGlTextureInfoForGLES2(GlTextureInfo* info) {
   }
 }
 #endif  // GL_ES_VERSION_2_0
-
-const GlTextureInfo& GlTextureInfoForGpuBufferFormat(GpuBufferFormat format,
-                                                     int plane) {
-#if defined(__APPLE__) && TARGET_OS_OSX
-  constexpr GlVersion default_version = GlVersion::kGL;
-#else
-  constexpr GlVersion default_version = GlVersion::kGLES3;
-#endif  // defined(__APPLE__) && TARGET_OS_OSX
-  return GlTextureInfoForGpuBufferFormat(format, plane, default_version);
-}
 
 const GlTextureInfo& GlTextureInfoForGpuBufferFormat(GpuBufferFormat format,
                                                      int plane,
@@ -173,7 +164,9 @@ const GlTextureInfo& GlTextureInfoForGpuBufferFormat(GpuBufferFormat format,
   }
 
   auto iter = format_info->find(format);
-  CHECK(iter != format_info->end()) << "unsupported format";
+  CHECK(iter != format_info->end())
+      << "unsupported format: "
+      << static_cast<std::underlying_type_t<decltype(format)>>(format);
   const auto& planes = iter->second;
 #ifndef __APPLE__
   CHECK_EQ(planes.size(), 1)

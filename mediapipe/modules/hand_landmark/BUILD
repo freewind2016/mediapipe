@@ -23,6 +23,7 @@ package(default_visibility = ["//visibility:public"])
 
 exports_files([
     "hand_landmark.tflite",
+    "hand_landmark_sparse.tflite",
     "handedness.txt",
 ])
 
@@ -86,6 +87,26 @@ mediapipe_simple_subgraph(
 )
 
 mediapipe_simple_subgraph(
+    name = "hand_landmark_tracking_cpu_image",
+    graph = "hand_landmark_tracking_cpu_image.pbtxt",
+    register_as = "HandLandmarkTrackingCpuImage",
+    deps = [
+        ":hand_landmark_tracking_cpu",
+        "//mediapipe/calculators/util:from_image_calculator",
+    ],
+)
+
+mediapipe_simple_subgraph(
+    name = "hand_landmark_tracking_gpu_image",
+    graph = "hand_landmark_tracking_gpu_image.pbtxt",
+    register_as = "HandLandmarkTrackingGpuImage",
+    deps = [
+        ":hand_landmark_tracking_gpu",
+        "//mediapipe/calculators/util:from_image_calculator",
+    ],
+)
+
+mediapipe_simple_subgraph(
     name = "hand_landmark_tracking_cpu",
     graph = "hand_landmark_tracking_cpu.pbtxt",
     register_as = "HandLandmarkTrackingCpu",
@@ -104,7 +125,7 @@ mediapipe_simple_subgraph(
         "//mediapipe/calculators/util:association_norm_rect_calculator",
         "//mediapipe/calculators/util:collection_has_min_size_calculator",
         "//mediapipe/calculators/util:filter_collection_calculator",
-        "//mediapipe/modules/palm_detection:palm_detection_gpu",
+        "//mediapipe/modules/palm_detection:palm_detection_cpu",
     ],
 )
 
@@ -123,7 +144,7 @@ mediapipe_simple_subgraph(
     graph = "hand_landmark_landmarks_to_roi.pbtxt",
     register_as = "HandLandmarkLandmarksToRoi",
     deps = [
-        "//mediapipe/calculators/core:split_normalized_landmark_list_calculator",
+        "//mediapipe/calculators/core:split_landmarks_calculator",
         "//mediapipe/calculators/util:rect_transformation_calculator",
         "//mediapipe/modules/hand_landmark/calculators:hand_landmarks_to_rect_calculator",
     ],

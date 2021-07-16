@@ -39,7 +39,7 @@ android_binary(
         "//mediapipe/graphs/iris_tracking:iris_tracking_gpu.binarypb",
         "//mediapipe/modules/face_landmark:face_landmark.tflite",
         "//mediapipe/modules/iris_landmark:iris_landmark.tflite",
-        "//mediapipe/modules/face_detection:face_detection_front.tflite",
+        "//mediapipe/modules/face_detection:face_detection_short_range.tflite",
     ],
     assets_dir = "",
     manifest = "//mediapipe/examples/android/src/java/com/google/mediapipe/apps/basic:AndroidManifest.xml",
@@ -60,5 +60,6 @@ android_binary(
         "//mediapipe/examples/android/src/java/com/google/mediapipe/apps/basic:basic_lib",
         "//mediapipe/framework/formats:landmark_java_proto_lite",
         "//mediapipe/java/com/google/mediapipe/framework:android_framework",
+        "@com_google_protobuf//:protobuf_javalite",
     ],
 )
